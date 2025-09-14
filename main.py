@@ -13,6 +13,8 @@ from typing import Optional
 
 from models.person import PersonCreate, PersonRead, PersonUpdate
 from models.address import AddressCreate, AddressRead, AddressUpdate
+from models.course import CourseCreate, CourseRead, CourseUpdate
+from models.enrollment import EnrollmentCreate, EnrollmentRead, EnrollmentUpdate
 from models.health import Health
 
 port = int(os.environ.get("FASTAPIPORT", 8000))
@@ -22,10 +24,12 @@ port = int(os.environ.get("FASTAPIPORT", 8000))
 # -----------------------------------------------------------------------------
 persons: Dict[UUID, PersonRead] = {}
 addresses: Dict[UUID, AddressRead] = {}
+courses: Dict[UUID, CourseRead] = {}
+enrollments: Dict[UUID, EnrollmentRead] = {}
 
 app = FastAPI(
-    title="Person/Address API",
-    description="Demo FastAPI app using Pydantic v2 models for Person and Address",
+    title="Person/Address/Course/Enrollment API",
+    description="Demo FastAPI app using Pydantic v2 models for Person, Address, Course, and Enrollment",
     version="0.1.0",
 )
 
@@ -101,6 +105,31 @@ def update_address(address_id: UUID, update: AddressUpdate):
     return addresses[address_id]
 
 # -----------------------------------------------------------------------------
+# Course endpoints
+# -----------------------------------------------------------------------------
+@app.post("/courses", response_model=CourseRead, status_code=201)
+def create_course(course: CourseCreate):
+    raise HTTPException(status_code=501, detail="Not Implemented")
+
+@app.get("/courses", response_model=List[CourseRead])
+def list_courses(
+    course_code: Optional[str] = Query(None, description="Filter by course code"),
+    title: Optional[str] = Query(None, description="Filter by course title"),
+    department: Optional[str] = Query(None, description="Filter by department"),
+    semester: Optional[str] = Query(None, description="Filter by semester"),
+    credits: Optional[int] = Query(None, description="Filter by number of credits"),
+):
+    raise HTTPException(status_code=501, detail="Not Implemented")
+
+@app.get("/courses/{course_id}", response_model=CourseRead)
+def get_course(course_id: UUID):
+    raise HTTPException(status_code=501, detail="Not Implemented")
+
+@app.patch("/courses/{course_id}", response_model=CourseRead)
+def update_course(course_id: UUID, update: CourseUpdate):
+    raise HTTPException(status_code=501, detail="Not Implemented")
+
+# -----------------------------------------------------------------------------
 # Person endpoints
 # -----------------------------------------------------------------------------
 @app.post("/persons", response_model=PersonRead, status_code=201)
@@ -160,11 +189,36 @@ def update_person(person_id: UUID, update: PersonUpdate):
     return persons[person_id]
 
 # -----------------------------------------------------------------------------
+# Enrollment endpoints
+# -----------------------------------------------------------------------------
+@app.post("/enrollments", response_model=EnrollmentRead, status_code=201)
+def create_enrollment(enrollment: EnrollmentCreate):
+    raise HTTPException(status_code=501, detail="Not Implemented")
+
+@app.get("/enrollments", response_model=List[EnrollmentRead])
+def list_enrollments(
+    person_id: Optional[UUID] = Query(None, description="Filter by person ID"),
+    course_id: Optional[UUID] = Query(None, description="Filter by course ID"),
+    status: Optional[str] = Query(None, description="Filter by enrollment status"),
+    grade: Optional[str] = Query(None, description="Filter by grade"),
+    enrollment_date: Optional[str] = Query(None, description="Filter by enrollment date (YYYY-MM-DD)"),
+):
+    raise HTTPException(status_code=501, detail="Not Implemented")
+
+@app.get("/enrollments/{enrollment_id}", response_model=EnrollmentRead)
+def get_enrollment(enrollment_id: UUID):
+    raise HTTPException(status_code=501, detail="Not Implemented")
+
+@app.patch("/enrollments/{enrollment_id}", response_model=EnrollmentRead)
+def update_enrollment(enrollment_id: UUID, update: EnrollmentUpdate):
+    raise HTTPException(status_code=501, detail="Not Implemented")
+
+# -----------------------------------------------------------------------------
 # Root
 # -----------------------------------------------------------------------------
 @app.get("/")
 def root():
-    return {"message": "Welcome to the Person/Address API. See /docs for OpenAPI UI."}
+    return {"message": "Welcome to the Person/Address/Course/Enrollment API. See /docs for OpenAPI UI."}
 
 # -----------------------------------------------------------------------------
 # Entrypoint for `python main.py`
@@ -172,4 +226,4 @@ def root():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True) 
