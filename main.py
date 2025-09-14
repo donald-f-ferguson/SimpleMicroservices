@@ -11,17 +11,16 @@ from fastapi import FastAPI, HTTPException
 from fastapi import Query, Path
 from typing import Optional
 
-from models.person import PersonCreate, PersonRead, PersonUpdate
-from models.address import AddressCreate, AddressRead, AddressUpdate
-from models.health import Health
+from models.hospital import HospitalCreate, HospitalRead, HospitalUpdate
+from models.appointment import AppointmentCreate, AppointmentRead, AppointmentUpdate
 
 port = int(os.environ.get("FASTAPIPORT", 8000))
 
 # -----------------------------------------------------------------------------
 # Fake in-memory "databases"
 # -----------------------------------------------------------------------------
-persons: Dict[UUID, PersonRead] = {}
-addresses: Dict[UUID, AddressRead] = {}
+hospitals: Dict[UUID, HospitalRead] = {}
+appointments: Dict[UUID, AppointmentRead] = {}
 
 app = FastAPI(
     title="Person/Address API",
@@ -29,135 +28,121 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# -----------------------------------------------------------------------------
-# Address endpoints
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# Hospital endpoints
+# ---------------------------------------------------------------------
+@app.post("/hospitals", response_model=HospitalRead, status_code=201, summary="Create a hospital")
+def create_hospital(hospital: HospitalCreate):
+    """Create a new hospital resource."""
+    if hospital.id in hospitals:
+        raise HTTPException(status_code=400, detail="Hospital with this ID already exists")
+    hospitals[hospital.id] = HospitalRead(**hospital.model_dump())
+    return hospitals[hospital.id]
 
-def make_health(echo: Optional[str], path_echo: Optional[str]=None) -> Health:
-    return Health(
-        status=200,
-        status_message="OK",
-        timestamp=datetime.utcnow().isoformat() + "Z",
-        ip_address=socket.gethostbyname(socket.gethostname()),
-        echo=echo,
-        path_echo=path_echo
-    )
-
-@app.get("/health", response_model=Health)
-def get_health_no_path(echo: str | None = Query(None, description="Optional echo string")):
-    # Works because path_echo is optional in the model
-    return make_health(echo=echo, path_echo=None)
-
-@app.get("/health/{path_echo}", response_model=Health)
-def get_health_with_path(
-    path_echo: str = Path(..., description="Required echo in the URL path"),
-    echo: str | None = Query(None, description="Optional echo string"),
+@app.get("/hospitals", response_model=List[HospitalRead], summary="List all hospitals")
+def list_hospitals(
+    name: Optional[str] = Query(None, description="Filter by hospital name"),
+    city: Optional[str] = Query(None, description="Filter by city (in address)"),
+    contact: Optional[str] = Query(None, description="Filter by contact"),
 ):
-    return make_health(echo=echo, path_echo=path_echo)
-
-@app.post("/addresses", response_model=AddressRead, status_code=201)
-def create_address(address: AddressCreate):
-    if address.id in addresses:
-        raise HTTPException(status_code=400, detail="Address with this ID already exists")
-    addresses[address.id] = AddressRead(**address.model_dump())
-    return addresses[address.id]
-
-@app.get("/addresses", response_model=List[AddressRead])
-def list_addresses(
-    street: Optional[str] = Query(None, description="Filter by street"),
-    city: Optional[str] = Query(None, description="Filter by city"),
-    state: Optional[str] = Query(None, description="Filter by state/region"),
-    postal_code: Optional[str] = Query(None, description="Filter by postal code"),
-    country: Optional[str] = Query(None, description="Filter by country"),
-):
-    results = list(addresses.values())
-
-    if street is not None:
-        results = [a for a in results if a.street == street]
+    """List all hospitals, with optional filters."""
+    results = list(hospitals.values())
+    if name is not None:
+        results = [h for h in results if h.name == name]
     if city is not None:
-        results = [a for a in results if a.city == city]
-    if state is not None:
-        results = [a for a in results if a.state == state]
-    if postal_code is not None:
-        results = [a for a in results if a.postal_code == postal_code]
-    if country is not None:
-        results = [a for a in results if a.country == country]
-
+        results = [h for h in results if city.lower() in (h.address or "").lower()]
+    if contact is not None:
+        results = [h for h in results if h.contact == contact]
     return results
 
-@app.get("/addresses/{address_id}", response_model=AddressRead)
-def get_address(address_id: UUID):
-    if address_id not in addresses:
-        raise HTTPException(status_code=404, detail="Address not found")
-    return addresses[address_id]
+@app.get("/hospitals/{hospital_id}", response_model=HospitalRead, summary="Get a hospital by ID")
+def get_hospital(hospital_id: UUID = Path(..., description="Hospital UUID")):
+    """Get a hospital by its UUID."""
+    if hospital_id not in hospitals:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+    return hospitals[hospital_id]
 
-@app.patch("/addresses/{address_id}", response_model=AddressRead)
-def update_address(address_id: UUID, update: AddressUpdate):
-    if address_id not in addresses:
-        raise HTTPException(status_code=404, detail="Address not found")
-    stored = addresses[address_id].model_dump()
+@app.patch("/hospitals/{hospital_id}", response_model=HospitalRead, summary="Update a hospital")
+def update_hospital(
+    update: HospitalUpdate, 
+    hospital_id: UUID = Path(..., description="Hospital UUID"), ):
+    """Update a hospital by its UUID."""
+    if hospital_id not in hospitals:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+    stored = hospitals[hospital_id].model_dump()
     stored.update(update.model_dump(exclude_unset=True))
-    addresses[address_id] = AddressRead(**stored)
-    return addresses[address_id]
+    hospitals[hospital_id] = HospitalRead(**stored)
+    return hospitals[hospital_id]
 
-# -----------------------------------------------------------------------------
-# Person endpoints
-# -----------------------------------------------------------------------------
-@app.post("/persons", response_model=PersonRead, status_code=201)
-def create_person(person: PersonCreate):
-    # Each person gets its own UUID; stored as PersonRead
-    person_read = PersonRead(**person.model_dump())
-    persons[person_read.id] = person_read
-    return person_read
+@app.delete(
+    "/hospitals/{hospital_id}",
+    status_code=204,
+    summary="Delete a hospital",
+    description="Delete a hospital by its UUID. Returns 204 if successful, 404 if not found.",
+)
+def delete_hospital(hospital_id: UUID = Path(..., description="Hospital UUID")):
+    """Delete a hospital by its UUID."""
+    if hospital_id not in hospitals:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+    del hospitals[hospital_id]
+    return
 
-@app.get("/persons", response_model=List[PersonRead])
-def list_persons(
-    uni: Optional[str] = Query(None, description="Filter by Columbia UNI"),
-    first_name: Optional[str] = Query(None, description="Filter by first name"),
-    last_name: Optional[str] = Query(None, description="Filter by last name"),
-    email: Optional[str] = Query(None, description="Filter by email"),
-    phone: Optional[str] = Query(None, description="Filter by phone number"),
-    birth_date: Optional[str] = Query(None, description="Filter by date of birth (YYYY-MM-DD)"),
-    city: Optional[str] = Query(None, description="Filter by city of at least one address"),
-    country: Optional[str] = Query(None, description="Filter by country of at least one address"),
+# ---------------------------------------------------------------------
+# Appointment endpoints
+# ---------------------------------------------------------------------
+@app.post("/appointments", response_model=AppointmentRead, status_code=201, summary="Create an appointment")
+def create_appointment(appointment: AppointmentCreate):
+    """Create a new appointment resource."""
+    if appointment.id in appointments:
+        raise HTTPException(status_code=400, detail="Appointment with this ID already exists")
+    appointments[appointment.id] = AppointmentRead(**appointment.model_dump())
+    return appointments[appointment.id]
+
+@app.get("/appointments", response_model=List[AppointmentRead], summary="List all appointments")
+def list_appointments(
+    person_id: Optional[str] = Query(None, description="Filter by person UNI"),
+    hospital_id: Optional[UUID] = Query(None, description="Filter by hospital ID"),
 ):
-    results = list(persons.values())
-
-    if uni is not None:
-        results = [p for p in results if p.uni == uni]
-    if first_name is not None:
-        results = [p for p in results if p.first_name == first_name]
-    if last_name is not None:
-        results = [p for p in results if p.last_name == last_name]
-    if email is not None:
-        results = [p for p in results if p.email == email]
-    if phone is not None:
-        results = [p for p in results if p.phone == phone]
-    if birth_date is not None:
-        results = [p for p in results if str(p.birth_date) == birth_date]
-
-    # nested address filtering
-    if city is not None:
-        results = [p for p in results if any(addr.city == city for addr in p.addresses)]
-    if country is not None:
-        results = [p for p in results if any(addr.country == country for addr in p.addresses)]
-
+    """List all appointments, with optional filters."""
+    results = list(appointments.values())
+    if person_id is not None:
+        results = [a for a in results if a.person_id == person_id]
+    if hospital_id is not None:
+        results = [a for a in results if a.hospital_id == hospital_id]
     return results
 
-@app.get("/persons/{person_id}", response_model=PersonRead)
-def get_person(person_id: UUID):
-    if person_id not in persons:
-        raise HTTPException(status_code=404, detail="Person not found")
-    return persons[person_id]
+@app.get("/appointments/{appointment_id}", response_model=AppointmentRead, summary="Get an appointment by ID")
+def get_appointment(appointment_id: UUID = Path(..., description="Appointment UUID")):
+    """Get an appointment by its UUID."""
+    if appointment_id not in appointments:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return appointments[appointment_id]
 
-@app.patch("/persons/{person_id}", response_model=PersonRead)
-def update_person(person_id: UUID, update: PersonUpdate):
-    if person_id not in persons:
-        raise HTTPException(status_code=404, detail="Person not found")
-    stored = persons[person_id].model_dump()
+@app.patch("/appointments/{appointment_id}", response_model=AppointmentRead, summary="Update an appointment")
+def update_appointment(
+    update: AppointmentUpdate,
+    appointment_id: UUID = Path(..., description="Appointment UUID"),
+):
+    """Update an appointment by its UUID."""
+    if appointment_id not in appointments:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    stored = appointments[appointment_id].model_dump()
     stored.update(update.model_dump(exclude_unset=True))
-    persons[person_id] = PersonRead(**stored)
-    return persons[person_id]
+    appointments[appointment_id] = AppointmentRead(**stored)
+    return appointments[appointment_id]
+
+@app.delete(
+    "/appointments/{appointment_id}",
+    status_code=204,
+    summary="Delete an appointment",
+    description="Delete an appointment by its UUID. Returns 204 if successful, 404 if not found.",
+)
+def delete_appointment(appointment_id: UUID = Path(..., description="Appointment UUID")):
+    """Delete an appointment by its UUID."""
+    if appointment_id not in appointments:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    del appointments[appointment_id]
+    return
 
 # -----------------------------------------------------------------------------
 # Root
