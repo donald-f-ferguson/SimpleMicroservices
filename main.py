@@ -24,7 +24,7 @@ appointments: Dict[UUID, AppointmentRead] = {}
 
 app = FastAPI(
     title="Person/Address API",
-    description="Demo FastAPI app using Pydantic v2 models for Person and Address",
+    description="Demo FastAPI app using Pydantic v2 models for Hospital and Appointment",
     version="0.1.0",
 )
 
